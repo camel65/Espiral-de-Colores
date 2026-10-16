@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Espiral e Ilusión Óptica con Volumen Máximo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #000;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        /* Botón de Inicio */
+        #btn-inicio {
+            padding: 18px 45px;
+            font-size: 1.6rem;
+            color: #fff;
+            background: transparent;
+            border: 2px solid #fff;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+            z-index: 10;
+        }
+
+        #btn-inicio:hover {
+            background-color: #fff;
+            color: #000;
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.8);
+            transform: scale(1.08);
+        }
+
+        /* Contenedor de Controles Flotantes */
+        .controles {
+            display: none;
+            position: fixed;
+            top: 25px;
+            right: 25px;
+            gap: 12px;
+            z-index: 20;
+        }
+
+        .btn-control {
+            padding: 10px 22px;
+            font-size: 0.95rem;
+            color: #fff;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 30px;
+            backdrop-filter: blur(5px);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-control:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: scale(1.05);
+        }
+
+        #btn-salir:hover {
+            background: rgba(255, 0, 85, 0.8);
+            border-color: #ff0055;
+            box-shadow: 0 0 15px rgba(255, 0, 85, 0.6);
+        }
+
+        /* Contenedor del lienzo */
+        #canvas-container {
+            display: none;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Botón de Inicio -->
+    <button id="btn-inicio">Inicio</button>
+
+    <!-- Controles flotantes -->
+    <div class="controles" id="panel-controles">
+        <button class="btn-control" id="btn-audio">🔊 Sonido: ON</button>
+        <button class="btn-control" id="btn-salir">Salir</button>
+    </div>
+
+    <!-- Contenedor del lienzo para la animación -->
+    <div id="canvas-container">
+        <canvas id="espiralCanvas"></canvas>
+    </div>
+
+    <script>
+        const btnInicio = document.getElementById('btn-inicio');
+        const btnSalir = document.getElementById('btn-salir');
+        const btnAudio = document.getElementById('btn-audio');
+        const panelControles = document.getElementById('panel-controles');
+        const canvasContainer = document.getElementById('canvas-container');
+        const canvas = document.getElementById('espiralCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let animacionId = null;
+        let angulo = 0;
+        let velocidadGiro = 0.02;
+        let colorMatiz = 0;
+        let tiempo = 0;
+
+        // Variables para la Música Rítmica Sintetizada
+        let audioCtx = null;
+        let audioActivo = true;
+        let masterGain = null;
+        let compresor = null;
+        let filtro = null;
+        let tiempoBucleMusica = null;
+        let pasoRitmo = 0;
+
+        function ajustarCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        window.addEventListener('resize', ajustarCanvas);
+
+        // --- SISTEMA DE MÚSICA RÍTMICA (Volumen Máximo + Compresor) ---
+        function reproducirPulsoRitmico() {
+            if (!audioActivo || !audioCtx || audioCtx.state !== 'running') return;
+
+            const tiempoActual = audioCtx.currentTime;
+
+            // 1. Sonido de Bajo Rítmico (Potenciado)
+            const oscBajo = audioCtx.createOscillator();
+            const gainBajo = audioCtx.createGain();
+            oscBajo.type = 'sawtooth';
+
+            const notasBajo = [55, 55, 65.41, 55, 73.42, 55, 65.41, 49];
+            const freqBajo = notasBajo[pasoRitmo % notasBajo.length];
+            
+            oscBajo.frequency.setValueAtTime(freqBajo, tiempoActual);
+            
+            gainBajo.gain.setValueAtTime(0.6, tiempoActual);
+            gainBajo.gain.exponentialRampToValueAtTime(0.001, tiempoActual + 0.12);
+
+            oscBajo.connect(gainBajo);
+            gainBajo.connect(filtro);
+            oscBajo.start(tiempoActual);
+            oscBajo.stop(tiempoActual + 0.13);
+
+            // 2. Arpegio Rápido y Brillante (Potenciado)
+            if (pasoRitmo % 2 === 0) {
+                const oscArp = audioCtx.createOscillator();
+                const gainArp = audioCtx.createGain();
+                oscArp.type = 'square';
+
+                const escalaMelodica = [220, 261.63, 329.63, 392, 440, 523.25, 659.25, 783.99];
+                const freqArp = escalaMelodica[(pasoRitmo * 3) % escalaMelodica.length];
+
+                oscArp.frequency.setValueAtTime(freqArp, tiempoActual);
+
+                gainArp.gain.setValueAtTime(0.3, tiempoActual);
+                gainArp.gain.exponentialRampToValueAtTime(0.001, tiempoActual + 0.1);
+
+                oscArp.connect(gainArp);
+                gainArp.connect(filtro);
+                oscArp.start(tiempoActual);
+                oscArp.stop(tiempoActual + 0.11);
+            }
+
+            pasoRitmo++;
+
+            let milisegundosRitmo = Math.max(70, 140 - (velocidadGiro * 1500));
+            tiempoBucleMusica = setTimeout(reproducirPulsoRitmico, milisegundosRitmo);
+        }
+
+        function iniciarMusica() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } else if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            masterGain = audioCtx.createGain();
+            // Volumen principal al máximo (1.0)
+            masterGain.gain.setValueAtTime(audioActivo ? 1.0 : 0, audioCtx.currentTime);
+
+            // Compresor para evitar distorsiones feas al subir tanto el volumen
+            compresor = audioCtx.createDynamicsCompressor();
+            compresor.threshold.setValueAtTime(-12, audioCtx.currentTime);
+            compresor.knee.setValueAtTime(30, audioCtx.currentTime);
+            compresor.ratio.setValueAtTime(12, audioCtx.currentTime);
+            compresor.attack.setValueAtTime(0.003, audioCtx.currentTime);
+            compresor.release.setValueAtTime(0.25, audioCtx.currentTime);
+
+            filtro = audioCtx.createBiquadFilter();
+            filtro.type = 'lowpass';
+            filtro.frequency.setValueAtTime(800, audioCtx.currentTime);
+
+            // Conexión: Filtro -> Compresor (potenciador) -> MasterGain -> Altavoces
+            filtro.connect(compresor);
+            compresor.connect(masterGain);
+            masterGain.connect(audioCtx.destination);
+
+            pasoRitmo = 0;
+            reproducirPulsoRitmico();
+        }
+
+        function detenerMusica() {
+            if (tiempoBucleMusica) clearTimeout(tiempoBucleMusica);
+            if (masterGain && audioCtx) {
+                masterGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+            }
+        }
+
+        // Control de Silencio
+        btnAudio.addEventListener('click', () => {
+            audioActivo = !audioActivo;
+            btnAudio.textContent = audioActivo ? "🔊 Sonido: ON" : "🔇 Sonido: OFF";
+            if (masterGain && audioCtx) {
+                masterGain.gain.setValueAtTime(audioActivo ? 1.0 : 0, audioCtx.currentTime);
+            }
+        });
+
+        // --- CONTROLES DE PÁGINA ---
+        btnInicio.addEventListener('click', () => {
+            btnInicio.style.display = 'none';
+            panelControles.style.display = 'flex';
+            canvasContainer.style.display = 'flex';
+            
+            velocidadGiro = 0.02;
+            angulo = 0;
+            tiempo = 0;
+            
+            ajustarCanvas();
+            iniciarAnimacion();
+            iniciarMusica();
+        });
+
+        btnSalir.addEventListener('click', () => {
+            if (animacionId) {
+                cancelAnimationFrame(animacionId);
+            }
+            detenerMusica();
+
+            canvasContainer.style.display = 'none';
+            panelControles.style.display = 'none';
+            btnInicio.style.display = 'block';
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        });
+
+        // --- BUCLE DE ANIMACIÓN ---
+        function iniciarAnimacion() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const centroX = canvas.width / 2;
+            const centroY = canvas.height / 2;
+            tiempo += 0.03;
+
+            if (filtro && audioCtx) {
+                let frecuenciaFiltro = Math.min(800 + (velocidadGiro * 12000), 7000);
+                filtro.frequency.setTargetAtTime(frecuenciaFiltro, audioCtx.currentTime, 0.1);
+            }
+
+            // 1. ILUSIÓN ÓPTICA: Anillos concéntricos contra-rotativos
+            const maxRadio = Math.max(canvas.width, canvas.height) / 1.5;
+            ctx.save();
+            ctx.translate(centroX, centroY);
+
+            for (let r = 30; r < maxRadio; r += 40) {
+                ctx.beginPath();
+                let pulso = Math.sin(tiempo + r * 0.02) * 5;
+                ctx.arc(0, 0, r + pulso, 0, Math.PI * 2);
+                
+                let direccion = (r % 80 === 0) ? 1 : -1;
+                ctx.strokeStyle = `hsla(${(colorMatiz + r) % 360}, 100%, 50%, 0.15)`;
+                ctx.lineWidth = 2;
+                ctx.setLineDash([15, 15]);
+                ctx.lineDashOffset = angulo * 50 * direccion;
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // 2. ESPIRAL PRINCIPAL
+            ctx.save();
+            ctx.translate(centroX, centroY);
+            ctx.rotate(angulo);
+
+            ctx.beginPath();
+            ctx.setLineDash([]);
+            for (let i = 0; i < 500; i++) {
+                let a = i * 0.08;
+                let r = 4 * a;
+                let x = r * Math.cos(a);
+                let y = r * Math.sin(a);
+
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+
+                if (r > maxRadio) break;
+            }
+
+            ctx.strokeStyle = `hsl(${colorMatiz}, 100%, 60%)`;
+            ctx.lineWidth = 3;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = `hsl(${colorMatiz}, 100%, 50%)`;
+            ctx.stroke();
+            ctx.restore();
+
+            velocidadGiro += 0.0002;
+            angulo += velocidadGiro;
+            colorMatiz = (colorMatiz + 1.2) % 360;
+
+            animacionId = requestAnimationFrame(iniciarAnimacion);
+        }
+    </script>
+</body>
+</html>
